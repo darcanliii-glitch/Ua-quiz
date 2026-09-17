@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Under Armour Bilgi Yarışması</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --black:#0a0a0a; --card:#161616; --red:#c8102e; --white:#ffffff;
+    --gray:#9a9a9a; --green:#1fae5a; --line:#262626;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family: Arial, Helvetica, sans-serif;
+    background:var(--black); color:var(--white);
+    display:flex; flex-direction:column; align-items:center;
+    min-height:100vh; padding:32px 20px;
+  }
+  .wrap{width:100%; max-width:640px; margin:auto;}
+  .eyebrow{color:var(--red); font-size:12px; letter-spacing:3px; font-weight:bold; text-align:center;}
+  h1{font-size:clamp(26px,5vw,38px); font-weight:900; text-align:center; margin-top:10px; line-height:1.1;}
+  p.sub{color:var(--gray); text-align:center; margin-top:12px; font-size:15px;}
+
+  /* HOST VIEW */
+  .qr-card{
+    background:var(--white); padding:26px; border-radius:8px; margin:34px auto 0;
+    width:fit-content; display:flex; justify-content:center;
+  }
+  #qrcode img{display:block;}
+  .link-box{
+    margin-top:18px; text-align:center; font-size:13px; color:var(--gray);
+    word-break:break-all;
+  }
+  .stats{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:44px;
+  }
+  .stat{
+    background:var(--card); border:1px solid var(--line); padding:22px 10px;
+    text-align:center; border-radius:4px;
+  }
+  .stat .num{font-size:30px; font-weight:900;}
+  .stat.correct .num{color:var(--green);}
+  .stat.wrong .num{color:var(--red);}
+  .stat .lbl{color:var(--gray); font-size:12px; margin-top:6px; letter-spacing:1px; text-transform:uppercase;}
+  .rows{margin-top:14px; max-height:340px; overflow-y:auto; border:1px solid var(--line); border-radius:6px;}
+  .row-item{
+    display:flex; justify-content:space-between; padding:12px 16px; font-size:14px;
+    border-bottom:1px solid var(--line); color:var(--gray);
+  }
+  .row-item:last-child{border-bottom:none;}
+  .row-item span.n{color:var(--white); font-weight:700;}
+  .db-note{margin-top:30px; text-align:center; font-size:12px; color:#6b6b6b; line-height:1.6;}
+
+  /* QUIZ VIEW */
+  .progress-wrap{background:var(--card); height:6px; border-radius:3px; margin-top:26px; overflow:hidden;}
+  .progress-bar{height:100%; background:var(--red); width:10%; transition:width .3s;}
+  .qnum{color:var(--gray); font-size:13px; margin-top:14px; text-align:center;}
+  .question-card{margin-top:22px;}
+  .qtext{font-size:22px; font-weight:800; line-height:1.35; text-align:center;}
+  .options{margin-top:28px; display:flex; flex-direction:column; gap:12px;}
+  .opt{
+    background:var(--card); border:1px solid var(--line); color:var(--white);
+    padding:16px 18px; font-size:15px; text-align:left; border-radius:6px; cursor:pointer;
+    transition:.15s;
+  }
+  .opt:hover{border-color:#555;}
+  .opt.selected{border-color:var(--red); background:#241014;}
+  .opt.correct{border-color:var(--green); background:#0f2318;}
+  .opt.incorrect{border-color:var(--red); background:#2a0f14;}
+  .nextbtn{
+    margin-top:30px; width:100%; padding:16px; background:var(--red); color:var(--white);
+    border:none; border-radius:6px; font-size:16px; font-weight:800; cursor:pointer;
+    letter-spacing:1px; text-transform:uppercase; opacity:.4; pointer-events:none; transition:.2s;
+  }
+  .nextbtn.active{opacity:1; pointer-events:auto;}
+  .nextbtn:hover.active{background:#a90d26;}
+
+  /* RESULT VIEW */
+  .result-hero{text-align:center; margin-top:40px;}
+  .score-big{font-size:80px; font-weight:900; line-height:1;}
+  .score-sub{color:var(--gray); margin-top:10px; font-size:15px;}
+  .result-stats{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:34px;}
+  .review{margin-top:40px;}
+  .review-item{
+    display:flex; gap:12px; padding:14px 0; border-bottom:1px solid var(--line); font-size:14px;
+  }
+  .badge{
+    flex-shrink:0; width:22px; height:22px; border-radius:50%; display:flex; align-items:center;
+    justify-content:center; font-weight:900; font-size:13px;
+  }
+  .badge.ok{background:var(--green); color:#00190a;}
+  .badge.no{background:var(--red); color:#2a0000;}
+  .review-item .rq{color:var(--white);}
+  .review-item .ra{color:var(--gray); margin-top:3px;}
+  .save-note{margin-top:26px; text-align:center; font-size:13px; color:var(--gray);}
+  footer.pagefoot{margin-top:60px; color:#555; font-size:11px; text-align:center;}
+  .hidden{display:none;}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">Yükleniyor...</div>
+
+<script>
+/* ---------------- QUESTION DATA (about.underarmour.com içeriğinden) ---------------- */
+const QUESTIONS = [
+  {
+    q: "Under Armour hangi yıl kuruldu?",
+    options: ["1994", "1996", "1999", "2001"],
+    correct: 1
+  },
+  {
+    q: "Under Armour'un kurucusu kimdir?",
+    options: ["Phil Knight", "Kevin Plank", "Chip Wilson", "Tom Brady"],
+    correct: 1
+  },
+  {
+    q: "Under Armour'un genel merkezi hangi şehirdedir?",
+    options: ["Portland", "Chicago", "Baltimore", "New York"],
+    correct: 2
+  },
+  {
+    q: "Under Armour'un ilk ürünü ne tür bir giysiydi?",
+    options: ["Koşu ayakkabısı", "Nem emici kompresyon tişört", "Yağmurluk", "Şapka"],
+    correct: 1
+  },
+  {
+    q: "Şirket fiziksel olarak ilk nerede kuruldu?",
+    options: ["Bir garajda", "Büyükannesinin evinin bodrum katında", "Bir üniversite laboratuvarında", "Kiralık bir ofiste"],
+    correct: 1
+  },
+  {
+    q: "Kevin Plank'ın Under Armour'u kurmak için kullandığı başlangıç sermayesi hangi işten geldi?",
+    options: ["Bir kitap satışından", "Bir gül teslimat işinden", "Bir yaz kampından", "Ailesinden miras"],
+    correct: 1
+  },
+  {
+    q: "Markayı 2003'te bir gecede tanınır hale getiren efsanevi reklamın sloganı neydi?",
+    options: ["Just Do It", "Protect This House", "Impossible Is Nothing", "I Will"],
+    correct: 1
+  },
+  {
+    q: "Under Armour'un resmi misyon ifadesi hangisidir?",
+    options: ["\"Just Do It\"", "\"Under Armour Sporcuları Daha İyi Yapar\"", "\"Impossible Is Nothing\"", "\"Never Stop Exploring\""],
+    correct: 1
+  },
+  {
+    q: "2013 yılında Under Armour hangi NBA yıldızıyla sponsorluk anlaşması imzalayarak basketboldaki yükselişini hızlandırdı?",
+    options: ["LeBron James", "Kevin Durant", "Stephen Curry", "Michael Jordan"],
+    correct: 2
+  },
+
+  /* ---- TEKSTİL / KUMAŞ TEKNOLOJİSİ (5 soru) ---- */
+  {
+    q: "UA HeatGear teknolojisi ne işe yarar?",
+    options: [
+      "Soğuk havada sıcak tutar",
+      "Sıcak havada vücudu serin ve kuru tutar, teri hızla uzaklaştırır",
+      "Yağmura karşı su geçirmezlik sağlar",
+      "Ayakkabı tabanına esneklik kazandırır"
+    ],
+    correct: 1
+  },
+  {
+    q: "UA ColdGear teknolojisi hangi amaçla geliştirilmiştir?",
+    options: [
+      "Yaz aylarında serinletmek için",
+      "Soğuk havalarda hafif ve etkili bir yalıtım sağlamak için",
+      "Kokuyu önlemek için",
+      "Kumaşı su geçirmez yapmak için"
+    ],
+    correct: 1
+  },
+  {
+    q: "UA RUSH kumaş teknolojisi hangi prensiple çalışır?",
+    options: [
+      "Güneş enerjisiyle ısınma",
+      "Kızılötesi (infrared) teknolojiyle vücuda enerji geri kazandırma",
+      "Manyetik alanla kas gevşetme",
+      "Su buharıyla soğutma"
+    ],
+    correct: 1
+  },
+  {
+    q: "UA Iso-Chill kumaşını dokunulduğunda serin hissettiren özellik nedir?",
+    options: [
+      "İçindeki soğutucu jel",
+      "Yassı (düz) iplik yapısı ve UV enerjisini emen titanyum dioksit",
+      "Çift katlı pamuklu yapı",
+      "Kumaşın içindeki metal teller"
+    ],
+    correct: 1
+  },
+  {
+    q: "UA Storm teknolojisi giysilere hangi özelliği kazandırır?",
+    options: [
+      "Kas desteği",
+      "Neredeyse ağırlıksız, nefes alabilir su itici koruma",
+      "Isı ile şekil değiştirme",
+      "Antibakteriyel koku önleyici katman"
+    ],
+    correct: 1
+  },
+
+  /* ---- AYAKKABI TEKNOLOJİSİ (5 soru) ---- */
+  {
+    q: "UA HOVR yastıklama teknolojisinin öne çıkan özelliği nedir?",
+    options: [
+      "'Sıfır yerçekimi' hissiyle darbeyi emip enerjiyi geri vermesi",
+      "Ayakkabıyı tamamen su geçirmez yapması",
+      "Sadece basketbol ayakkabılarında kullanılması",
+      "Ayakkabı bağcığı ihtiyacını ortadan kaldırması"
+    ],
+    correct: 0
+  },
+  {
+    q: "UA Flow yastıklama teknolojisinin farkı nedir?",
+    options: [
+      "Sadece kışlık botlarda kullanılır",
+      "Kauçuk dış taban gerektirmeyen, ultra hafif ve kavrayışlı bir yapı sunar",
+      "Deriden üretilir",
+      "Sadece çocuk ayakkabılarında bulunur"
+    ],
+    correct: 1
+  },
+  {
+    q: "UA TriBase dış taban teknolojisi neyi hedefler?",
+    options: [
+      "3 temas noktasıyla zeminde sağlam tutunma ve esneklik (ağırlık antrenmanı için)",
+      "Ayakkabıyı hafifletmek için tabanı tamamen kaldırmak",
+      "Sadece koşu bandında kullanılabilmek",
+      "Su üstünde yürüyebilmek"
+    ],
+    correct: 0
+  },
+  {
+    q: "Under Armour'un koşu kategorisindeki amiral gemisi yastıklama serisi hangisidir?",
+    options: ["Air Series", "Boost Line", "HOVR", "ZoomX"],
+    correct: 2
+  },
+
+  /* ---- AKSESUAR TEKNOLOJİSİ (3 soru) ---- */
+  {
+    q: "Aşağıdakilerden hangisi Under Armour'un aksesuar kategorisinde YER ALMAZ?",
+    options: ["Eldiven", "Sırt çantası / spor çantası", "Bilgisayar klavyesi", "Başlık (bere/şapka)"],
+    correct: 2
+  },
+
+  /* ---- ÜRÜN KOLEKSİYONLARI (2 soru) ---- */
+  {
+    q: "UA Rival Fleece koleksiyonu nasıl bir üründür?",
+    options: [
+      "Yüzme sporlarına özel su geçirmez ürün",
+      "Hafif, yumuşak dokulu, günlük kullanım için rahat bir fleece hattı",
+      "Sadece profesyonel futbolcular için üretilen forma",
+      "Kış botu serisi"
+    ],
+    correct: 1
+  },
+  {
+    q: "UA Unstoppable Fleece'i UA Rival'dan ayıran temel özellik nedir?",
+    options: [
+      "Sadece kadın koleksiyonunda satılması",
+      "Daha premium, çift taraflı yumuşak, esneyen ve nefes alabilen teknik kumaş kullanması",
+      "Su geçirmez olmaması",
+      "Ayakkabı ile aynı seride üretilmesi"
+    ],
+    correct: 1
+  }
+];
+
+/* ---------------- ROUTING ----------------
+   Hash-based routing (#quiz / #results) is used instead of a query
+   string: claude.ai's artifact viewer can normalize/strip query
+   params on load, but the URL hash never reaches a server and always
+   survives a QR scan / direct open.
+
+   NOTE: this page declares the `db` capability so the host can see a
+   live-updating doğru/yanlış dashboard from their own Claude account.
+   Per Claude's platform rules, writing to that shared data requires
+   the participant to be signed in within the host's Claude
+   organization — a fully anonymous, no-account visitor cannot write
+   to it. The host (this account) will always be able to read the
+   results link regardless. */
+function computeMode(){
+  const hash = window.location.hash.replace("#","");
+  const params = new URLSearchParams(window.location.search);
+  if(hash === "results" || params.get("results") === "1") return "results";
+  if(hash === "quiz" || params.get("quiz") === "1") return "quiz";
+  return "host";
+}
+let mode = computeMode();
+const app = document.getElementById("app");
+window.addEventListener("hashchange", () => {
+  mode = computeMode();
+  boot();
+});
+
+/* ---------------- BACKEND (Netlify Function + Blobs) ----------------
+   Fully public/anonymous: no Claude account or sign-in needed. Data
+   lives in this site's own serverless function, reachable at
+   /api/responses (see netlify/functions/responses.mjs). */
+const API_URL = "/api/responses";
+const db = true; // truthy flag kept so the rest of the code reads naturally
+
+async function apiList(){
+  try{
+    const res = await fetch(API_URL, { cache: "no-store" });
+    if(!res.ok) return [];
+    return await res.json();
+  }catch(e){ return []; }
+}
+async function apiAdd(record){
+  try{
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(record)
+    });
+    if(!res.ok) return null;
+    return await res.json(); // { ok, id }
+  }catch(e){ return null; }
+}
+async function apiUpdate(id, patch){
+  try{
+    const res = await fetch(API_URL + "?id=" + encodeURIComponent(id), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch)
+    });
+    return res.ok;
+  }catch(e){ return false; }
+}
+
+/* ---------------- HOST VIEW ---------------- */
+function renderHost(){
+  const baseUrl = window.location.origin + window.location.pathname;
+  const quizUrl = baseUrl + "#quiz";
+  const resultsUrl = baseUrl + "#results";
+  app.innerHTML = `
+    <div class="eyebrow">UNDER ARMOUR</div>
+    <h1>Bilgi Yarışması</h1>
+    <p class="sub">Telefonunla QR kodu okut, kısa bilgi yarışmasını çöz.</p>
+    <div class="qr-card"><div id="qrcode"></div></div>
+    <div class="link-box">${quizUrl}</div>
+    <div style="display:flex; gap:10px; margin-top:18px; max-width:420px; margin-left:auto; margin-right:auto;">
+      <button class="nextbtn active" style="flex:1;" onclick="window.location.hash='quiz'">Bu cihazda teste başla</button>
+      <button class="nextbtn active" style="flex:0 0 auto; background:var(--card); border:1px solid var(--line);" id="refreshQrBtn" title="QR kodu yeniden oluştur">QR'ı Yenile</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="num" id="statCount">0</div><div class="lbl">Katılımcı</div></div>
+      <div class="stat correct"><div class="num" id="statCorrect">0</div><div class="lbl">Toplam Doğru</div></div>
+      <div class="stat wrong"><div class="num" id="statWrong">0</div><div class="lbl">Toplam Yanlış</div></div>
+    </div>
+    <h3 style="margin-top:34px; font-size:15px; color:var(--gray); letter-spacing:1px; text-transform:uppercase;">Katılımcı Listesi</h3>
+    <div class="rows" id="rows"><div class="row-item"><span>Yükleniyor…</span><span></span></div></div>
+    <button class="nextbtn active" style="margin-top:22px; background:var(--card); border:1px solid var(--line);" onclick="window.location.hash='results'">📋 Tüm Sonuçları ve Yorumları Gör</button>
+    <div class="db-note">Bu pano tamamen herkese açık ve anonim — QR'ı okutan hiç kimse Claude veya başka bir hesaba giriş yapmak zorunda değil. Sonuçlar bu sitenin kendi arka ucunda (Netlify Function + Blobs) saklanır ve her 3 saniyede bir otomatik güncellenir.</div>
+    <footer class="pagefoot">about.underarmour.com ve Under Armour resmi teknoloji sayfalarından hazırlanmıştır.</footer>
+  `;
+  drawQr(quizUrl);
+  document.getElementById("refreshQrBtn").addEventListener("click", () => drawQr(quizUrl));
+}
+
+function drawQr(quizUrl){
+  const holder = document.getElementById("qrcode");
+  if(!holder) return;
+  holder.innerHTML = "";
+  new QRCode(holder, {
+    text: quizUrl,
+    width: 220, height: 220,
+    colorDark: "#0a0a0a", colorLight: "#ffffff"
+  });
+}
+
+let liveStatsTimer = null;
+function attachLiveStats(){
+  const poll = async () => {
+    const items = await apiList();
+    let totalCorrect = 0, totalWrong = 0;
+    const rowsHtml = [];
+    items.slice(0,200).forEach((data) => {
+      totalCorrect += data.correct || 0;
+      totalWrong += data.wrong || 0;
+      const displayName = (data.name && String(data.name).trim()) || "İsimsiz Katılımcı";
+      const displayDealer = (data.dealer && String(data.dealer).trim()) || "";
+      rowsHtml.push(`<div class="row-item"><span class="n">${escapeHtml(displayName)}${displayDealer ? " · " + escapeHtml(displayDealer) : ""}</span><span>${data.correct ?? 0} doğru / ${data.wrong ?? 0} yanlış</span></div>`);
+    });
+    const countEl = document.getElementById("statCount");
+    const corrEl = document.getElementById("statCorrect");
+    const wrongEl = document.getElementById("statWrong");
+    const rowsEl = document.getElementById("rows");
+    if(!countEl) { clearInterval(liveStatsTimer); return; } // view changed, stop polling
+    countEl.textContent = items.length;
+    corrEl.textContent = totalCorrect;
+    wrongEl.textContent = totalWrong;
+    rowsEl.innerHTML = rowsHtml.length ? rowsHtml.join("") : `<div class="row-item"><span>Henüz katılımcı yok</span><span></span></div>`;
+  };
+  poll();
+  clearInterval(liveStatsTimer);
+  liveStatsTimer = setInterval(poll, 3000);
+}
+
+/* ---------------- RESULTS VIEW (detailed list + comments) ---------------- */
+function renderResults(){
+  app.innerHTML = `
+    <div class="eyebrow">UNDER ARMOUR</div>
+    <h1 style="font-size:28px;">Sonuç Tablosu</h1>
+    <p class="sub">QR okutulup cevaplar geldikçe bu tablo canlı olarak güncellenir.</p>
+    <div class="stats">
+      <div class="stat"><div class="num" id="rCount">0</div><div class="lbl">Katılımcı</div></div>
+      <div class="stat correct"><div class="num" id="rCorrect">0</div><div class="lbl">Toplam Doğru</div></div>
+      <div class="stat wrong"><div class="num" id="rWrong">0</div><div class="lbl">Toplam Yanlış</div></div>
+    </div>
+    <div style="margin-top:30px; overflow-x:auto; border:1px solid var(--line); border-radius:8px;">
+      <table style="width:100%; border-collapse:collapse; font-size:14px;">
+        <thead>
+          <tr style="background:var(--card);">
+            <th style="text-align:left; padding:14px 16px; color:var(--gray); font-size:12px; letter-spacing:1px; text-transform:uppercase; border-bottom:1px solid var(--line);">Ad Soyad</th>
+            <th style="text-align:left; padding:14px 16px; color:var(--gray); font-size:12px; letter-spacing:1px; text-transform:uppercase; border-bottom:1px solid var(--line);">Bayi</th>
+            <th style="text-align:center; padding:14px 16px; color:var(--green); font-size:12px; letter-spacing:1px; text-transform:uppercase; border-bottom:1px solid var(--line);">Doğru</th>
+            <th style="text-align:center; padding:14px 16px; color:var(--red); font-size:12px; letter-spacing:1px; text-transform:uppercase; border-bottom:1px solid var(--line);">Yanlış</th>
+          </tr>
+        </thead>
+        <tbody id="resultsTableBody">
+          <tr><td colspan="4" style="padding:18px; text-align:center; color:var(--gray);">Yükleniyor…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="db-note" id="resultsNote">Yükleniyor…</div>
+    <button class="nextbtn active" style="margin-top:26px; background:var(--card); border:1px solid var(--line);" onclick="window.location.hash=''">← Ana Ekrana Dön</button>
+    <footer class="pagefoot">about.underarmour.com ve Under Armour resmi teknoloji sayfalarından hazırlanmıştır.</footer>
+  `;
+}
+
+let resultsTimer = null;
+function attachResultsList(){
+  const poll = async () => {
+    const items = await apiList();
+    let totalCorrect = 0, totalWrong = 0;
+    const rowsHtml = [];
+    items.slice(0,500).forEach((data) => {
+      totalCorrect += data.correct || 0;
+      totalWrong += data.wrong || 0;
+      const displayName = (data.name && String(data.name).trim()) || "İsimsiz Katılımcı";
+      const displayDealer = (data.dealer && String(data.dealer).trim()) || "—";
+      rowsHtml.push(`
+        <tr style="border-bottom:1px solid var(--line);">
+          <td style="padding:13px 16px; font-weight:700;">${escapeHtml(displayName)}</td>
+          <td style="padding:13px 16px; color:var(--gray);">${escapeHtml(displayDealer)}</td>
+          <td style="padding:13px 16px; text-align:center; color:var(--green); font-weight:800;">${data.correct ?? 0}</td>
+          <td style="padding:13px 16px; text-align:center; color:var(--red); font-weight:800;">${data.wrong ?? 0}</td>
+        </tr>
+      `);
+    });
+    const countEl = document.getElementById("rCount");
+    const corrEl = document.getElementById("rCorrect");
+    const wrongEl = document.getElementById("rWrong");
+    const bodyEl = document.getElementById("resultsTableBody");
+    const noteEl = document.getElementById("resultsNote");
+    if(!countEl) { clearInterval(resultsTimer); return; }
+    countEl.textContent = items.length;
+    corrEl.textContent = totalCorrect;
+    wrongEl.textContent = totalWrong;
+    bodyEl.innerHTML = rowsHtml.length ? rowsHtml.join("") : `<tr><td colspan="4" style="padding:18px; text-align:center; color:var(--gray);">Henüz katılımcı yok.</td></tr>`;
+    noteEl.textContent = "Bu tablo canlı olarak güncellenir (3 saniyede bir) — sayfayı yenilemene gerek yok.";
+  };
+  poll();
+  clearInterval(resultsTimer);
+  resultsTimer = setInterval(poll, 3000);
+}
+
+function escapeHtml(str){
+  return String(str)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+
+/* ---------------- NAME GATE ---------------- */
+function renderNameGate(){
+  app.innerHTML = `
+    <div class="eyebrow">UNDER ARMOUR BİLGİ YARIŞMASI</div>
+    <h1 style="margin-top:14px;">Başlamadan Önce</h1>
+    <p class="sub">Sonucunun listede görünmesi için bilgilerini yaz.</p>
+    <div class="question-card" style="margin-top:36px;">
+      <input id="nameInput" type="text" placeholder="Ad Soyad"
+        style="width:100%; padding:16px 18px; font-size:16px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--white);" />
+      <input id="dealerInput" type="text" placeholder="Bayi Adı"
+        style="width:100%; padding:16px 18px; font-size:16px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--white); margin-top:12px;" />
+      <div id="nameErr" style="color:var(--red); font-size:13px; margin-top:10px; min-height:16px;"></div>
+      <button class="nextbtn active" id="startBtn" style="margin-top:14px;">Teste Başla</button>
+    </div>
+    <footer class="pagefoot">about.underarmour.com ve Under Armour resmi teknoloji sayfalarından hazırlanmıştır.</footer>
+  `;
+  const input = document.getElementById("nameInput");
+  const dealerInput = document.getElementById("dealerInput");
+  input.focus();
+  const start = () => {
+    const val = input.value.trim();
+    const dealerVal = dealerInput.value.trim();
+    if(val.length < 2){
+      document.getElementById("nameErr").textContent = "Lütfen ad ve soyadını gir.";
+      return;
+    }
+    if(dealerVal.length < 2){
+      document.getElementById("nameErr").textContent = "Lütfen bayi adını gir.";
+      return;
+    }
+    participantName = val;
+    participantDealer = dealerVal;
+    renderQuiz();
+  };
+  document.getElementById("startBtn").addEventListener("click", start);
+  input.addEventListener("keydown", (e) => { if(e.key === "Enter") dealerInput.focus(); });
+  dealerInput.addEventListener("keydown", (e) => { if(e.key === "Enter") start(); });
+}
+
+/* ---------------- QUIZ VIEW ---------------- */
+let current = 0;
+let selectedIndex = null;
+const answers = new Array(QUESTIONS.length).fill(null);
+
+function renderQuiz(){
+  const q = QUESTIONS[current];
+  const pct = Math.round(((current) / QUESTIONS.length) * 100 + 5);
+  app.innerHTML = `
+    <div class="eyebrow">UNDER ARMOUR BİLGİ YARIŞMASI</div>
+    <div class="progress-wrap"><div class="progress-bar" style="width:${pct}%"></div></div>
+    <div class="qnum">Soru ${current+1} / ${QUESTIONS.length}</div>
+    <div class="question-card">
+      <div class="qtext">${q.q}</div>
+      <div class="options" id="options">
+        ${q.options.map((o,i)=>`<button class="opt" data-i="${i}">${o}</button>`).join("")}
+      </div>
+      <button class="nextbtn" id="nextBtn">${current === QUESTIONS.length-1 ? "Bitir" : "Sonraki Soru"}</button>
+    </div>
+    <footer class="pagefoot">about.underarmour.com ve Under Armour resmi teknoloji sayfalarından hazırlanmıştır.</footer>
+  `;
+  selectedIndex = null;
+  document.querySelectorAll(".opt").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll(".opt").forEach(b=>b.classList.remove("selected"));
+      btn.classList.add("selected");
+      selectedIndex = parseInt(btn.getAttribute("data-i"));
+      document.getElementById("nextBtn").classList.add("active");
+    });
+  });
+  document.getElementById("nextBtn").addEventListener("click", ()=>{
+    if(selectedIndex === null) return;
+    answers[current] = selectedIndex;
+    if(current < QUESTIONS.length - 1){
+      current++;
+      renderQuiz();
+    } else {
+      finishQuiz();
+    }
+  });
+}
+
+let currentRecordId = null;
+
+function finishQuiz(){
+  let correct = 0, wrong = 0;
+  QUESTIONS.forEach((q,i)=>{
+    if(answers[i] === q.correct) correct++; else wrong++;
+  });
+  renderResult(correct, wrong);
+  apiAdd({
+    name: participantName, dealer: participantDealer, correct, wrong, total: QUESTIONS.length,
+    comment: "", rating: 0
+  }).then(result => {
+    const note = document.getElementById("saveNote");
+    if(result && result.ok){
+      currentRecordId = result.id;
+      if(note) note.textContent = "Sonucun canlı panoya kaydedildi.";
+    } else {
+      if(note) note.textContent = "Sonucun panoya otomatik kaydedilemedi — yine de aşağıdan WhatsApp/kopyala ile gönderebilirsin.";
+    }
+  });
+}
+
+function buildShareText(correct, wrong, comment, rating){
+  const stars = rating ? "★".repeat(rating) + "☆".repeat(5-rating) : "—";
+  let txt = `Under Armour Bilgi Yarışması Sonucu\n`;
+  txt += `Ad Soyad: ${participantName || "—"}\n`;
+  txt += `Bayi: ${participantDealer || "—"}\n`;
+  txt += `Doğru: ${correct} / Yanlış: ${wrong} (Toplam ${QUESTIONS.length} soru)\n`;
+  txt += `Değerlendirme: ${stars}\n`;
+  if(comment) txt += `Yorum: ${comment}\n`;
+  return txt;
+}
+
+function renderResult(correct, wrong){
+  const reviewHtml = QUESTIONS.map((q,i)=>{
+    const ok = answers[i] === q.correct;
+    return `<div class="review-item">
+      <div class="badge ${ok ? "ok":"no"}">${ok ? "✓" : "✕"}</div>
+      <div>
+        <div class="rq">${i+1}. ${q.q}</div>
+        <div class="ra">Senin cevabın: ${q.options[answers[i]] ?? "—"}${ok ? "" : " · Doğrusu: " + q.options[q.correct]}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  app.innerHTML = `
+    <div class="eyebrow">SONUCUN</div>
+    <div class="result-hero">
+      <div style="color:var(--gray); font-size:15px;">${escapeHtml(participantName || "")}${participantDealer ? " · " + escapeHtml(participantDealer) : ""}</div>
+      <div class="score-big">${correct}/${QUESTIONS.length}</div>
+      <div class="score-sub">doğru cevapladın</div>
+    </div>
+    <div class="result-stats">
+      <div class="stat correct"><div class="num">${correct}</div><div class="lbl">Doğru</div></div>
+      <div class="stat wrong"><div class="num">${wrong}</div><div class="lbl">Yanlış</div></div>
+    </div>
+
+    <h3 style="margin-top:40px; font-size:15px; color:var(--gray); letter-spacing:1px; text-transform:uppercase;">Yorum ve Değerlendirme</h3>
+    <div class="question-card" style="margin-top:14px;">
+      <div id="starRow" style="display:flex; gap:8px; justify-content:center; font-size:30px; margin-bottom:16px;">
+        ${[1,2,3,4,5].map(n=>`<span class="star" data-n="${n}" style="cursor:pointer; color:#3a3a3a;">★</span>`).join("")}
+      </div>
+      <textarea id="commentBox" placeholder="Under Armour bilgi yarışması hakkında yorumunu yaz (opsiyonel)..."
+        style="width:100%; min-height:100px; padding:14px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--white); font-family:inherit; font-size:14px; resize:vertical;"></textarea>
+      <button class="nextbtn active" id="sendCommentBtn" style="margin-top:14px;">Yorumu Panoya Gönder</button>
+    </div>
+    <div class="save-note" id="saveNote">${db ? "Sonucun canlı panoya kaydediliyor…" : "Bu bağlantıda canlı pano bağlantısı kurulamadı."}</div>
+
+    <h3 style="margin-top:34px; font-size:15px; color:var(--gray); letter-spacing:1px; text-transform:uppercase;">Ya da Doğrudan Paylaş</h3>
+    <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
+      <button class="nextbtn active" id="waBtn" style="flex:1; min-width:160px; background:#25D366; color:#04210f;">WhatsApp ile Gönder</button>
+      <button class="nextbtn active" id="copyBtn" style="flex:1; min-width:160px; background:var(--card); border:1px solid var(--line);">Panoya Kopyala</button>
+    </div>
+    <div id="shareNote" style="text-align:center; font-size:13px; color:var(--green); margin-top:10px; min-height:16px;"></div>
+
+    <div class="review">${reviewHtml}</div>
+    <button class="nextbtn active" style="margin-top:20px; background:var(--card); border:1px solid var(--line);" onclick="window.location.hash=''; window.location.reload();">Ana Ekrana Dön</button>
+    <footer class="pagefoot">about.underarmour.com ve Under Armour resmi teknoloji sayfalarından hazırlanmıştır.</footer>
+  `;
+
+  let selectedRating = 0;
+  document.querySelectorAll("#starRow .star").forEach(star=>{
+    star.addEventListener("click", ()=>{
+      selectedRating = parseInt(star.getAttribute("data-n"));
+      document.querySelectorAll("#starRow .star").forEach(s=>{
+        s.style.color = parseInt(s.getAttribute("data-n")) <= selectedRating ? "#ffc93c" : "#3a3a3a";
+      });
+    });
+  });
+
+  document.getElementById("sendCommentBtn").addEventListener("click", async ()=>{
+    const commentVal = document.getElementById("commentBox").value.trim();
+    const note = document.getElementById("saveNote");
+    const doSave = async (id) => {
+      const ok = await apiUpdate(id, { comment: commentVal, rating: selectedRating });
+      note.textContent = ok ? "Yorumun panoya kaydedildi, teşekkürler!" : "Yorum kaydedilemedi, tekrar dene.";
+    };
+    if(currentRecordId){
+      doSave(currentRecordId);
+    } else {
+      note.textContent = "Kaydediliyor, birkaç saniye içinde tekrar dene...";
+      setTimeout(()=>{ if(currentRecordId) doSave(currentRecordId); }, 1200);
+    }
+  });
+
+  document.getElementById("waBtn").addEventListener("click", ()=>{
+    const comment = document.getElementById("commentBox").value.trim();
+    const text = buildShareText(correct, wrong, comment, selectedRating);
+    window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
+  });
+  document.getElementById("copyBtn").addEventListener("click", async ()=>{
+    const comment = document.getElementById("commentBox").value.trim();
+    const text = buildShareText(correct, wrong, comment, selectedRating);
+    const note = document.getElementById("shareNote");
+    try{
+      await navigator.clipboard.writeText(text);
+      note.style.color = "var(--green)";
+      note.textContent = "Sonucun panoya kopyalandı — istediğin yere yapıştırabilirsin.";
+    }catch(e){
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      try{ document.execCommand("copy"); note.style.color = "var(--green)"; note.textContent = "Sonucun panoya kopyalandı."; }
+      catch(e2){ note.style.color = "var(--red)"; note.textContent = "Kopyalanamadı, metni elle seçip kopyalayabilirsin."; }
+      document.body.removeChild(ta);
+    }
+  });
+}
+
+/* ---------------- INIT ---------------- */
+let participantName = "";
+let participantDealer = "";
+
+function boot(){
+  if(mode === "quiz"){
+    current = 0;
+    answers.fill(null);
+    currentRecordId = null;
+    renderNameGate();
+  } else if(mode === "results"){
+    renderResults();
+    attachResultsList();
+  } else {
+    renderHost();
+    attachLiveStats();
+  }
+}
+boot();
+</script>
+</body>
+</html>
